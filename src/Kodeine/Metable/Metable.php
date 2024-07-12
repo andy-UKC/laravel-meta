@@ -24,7 +24,7 @@ trait Metable
 	 */
 	public function scopeWhereMeta($query, $key, $value, $alias = null, $operator = '=') {
 		$alias = (empty( $alias )) ? $this->getMetaTable() : $alias;
-		return $query->join( $this->getMetaTable() . ' AS ' . $alias, $this->getQualifiedKeyName(), '=', $alias . '.' . $this->getMetaKeyName() )->where( $alias . '.key', '=', $key )->where( $alias . '.value', $operator, $value )->select( $this->getTable() . '.*' );
+		return $query->join( $this->getMetaTable() . ' AS ' . $alias, $this->getQualifiedKeyName(), '=', $alias . '.' . $this->getMetaKeyName() )->where( $alias . '.' . $this->getMetaKeyColumnName(), '=', $key )->where( $alias . '.' . $this->getMetaValueColumnName(), $operator, $value )->select( $this->getTable() . '.*' );
 	}
 	
 	/**
@@ -66,14 +66,14 @@ trait Metable
 			// Make sure deletion marker is not set
 			$this->getMetaData()[$key]->markForDeletion( false );
 			
-			$this->getMetaData()[$key]->value = $value;
+			$this->getMetaData()[$key]->{$this->getMetaValueColumnName()} = $value;
 			
 			return $this->getMetaData()[$key];
 		}
 		
 		return $this->getMetaData()[$key] = $this->getModelStub( [
-			'key' => $key,
-			'value' => $value,
+			$this->getMetaKeyColumnName() => $key,
+			$this->getMetaValueColumnName() => $value,
 		] );
 	}
 	
@@ -229,7 +229,7 @@ trait Metable
 			return $this->getDefaultMetaValue( $key ) ?? $default;
 		}
 		
-		return $meta->value;
+		return $meta->{$this->getMetaValueColumnName()};
 	}
 	
 	protected function getMetaArray($keys, $default = null): BaseCollection {
@@ -270,7 +270,7 @@ trait Metable
 		
 		foreach ($this->getMetaData() as $meta) {
 			if ( ! $meta->isMarkedForDeletion() ) {
-				$collection->put( $meta->key, $raw ? $meta : $meta->value );
+				$collection->put( $meta->{$this->getMetaKeyColumnName()}, $raw ? $meta : $meta->{$this->getMetaValueColumnName()} );
 			}
 		}
 		
@@ -308,28 +308,28 @@ trait Metable
 			
 			if ( $meta->isMarkedForDeletion() ) {
 				if ( $meta->exists ) {
-					if ( $this->fireMetaEvent( 'deleting', $meta->key ) === false ) {
+					if ( $this->fireMetaEvent( 'deleting', $meta->{$this->getMetaKeyColumnName()} ) === false ) {
 						continue;
 					}
 				}
 				$meta->delete();
-				unset( $this->getMetaData()[$meta->key] );
-				$this->fireMetaEvent( 'deleted', $meta->key, false );
+				unset( $this->getMetaData()[$meta->{$this->getMetaKeyColumnName()}] );
+				$this->fireMetaEvent( 'deleted', $meta->{$this->getMetaKeyColumnName()}, false );
 				continue;
 			}
 			
 			if ( $meta->isDirty() ) {
-				if ( $this->fireMetaEvent( 'saving', $meta->key ) === false ) {
+				if ( $this->fireMetaEvent( 'saving', $meta->{$this->getMetaKeyColumnName()} ) === false ) {
 					continue;
 				}
 				if ( $meta->exists ) {
-					if ( $this->fireMetaEvent( 'updating', $meta->key ) === false ) {
+					if ( $this->fireMetaEvent( 'updating', $meta->{$this->getMetaKeyColumnName()} ) === false ) {
 						continue;
 					}
 					$nextEvent = 'updated';
 				}
 				else {
-					if ( $this->fireMetaEvent( 'creating', $meta->key ) === false ) {
+					if ( $this->fireMetaEvent( 'creating', $meta->{$this->getMetaKeyColumnName()} ) === false ) {
 						continue;
 					}
 					$nextEvent = 'created';
@@ -337,8 +337,8 @@ trait Metable
 				// set meta and model relation id's into meta table.
 				$meta->setAttribute( $this->getMetaKeyName(), $this->getKey() );
 				if ( $meta->save() ) {
-					$this->fireMetaEvent( $nextEvent, $meta->key, false );
-					$this->fireMetaEvent( 'saved', $meta->key, false );
+					$this->fireMetaEvent( $nextEvent, $meta->{$this->getMetaKeyColumnName()}, false );
+					$this->fireMetaEvent( 'saved', $meta->{$this->getMetaKeyColumnName()}, false );
 				}
 			}
 		}
@@ -370,7 +370,7 @@ trait Metable
 		if ( is_null( $this->__metaData ) ) {
 			
 			if ( $this->exists && ! is_null( $this->metas ) ) {
-				$this->__metaData = $this->metas->keyBy( 'key' );
+				$this->__metaData = $this->metas->keyBy( $this->getMetaKeyColumnName() );
 			}
 			else {
 				$this->__metaData = new Collection();
@@ -404,6 +404,26 @@ trait Metable
 	 */
 	protected function getMetaClass(): string {
 		return property_exists( $this, 'metaClass' ) ? $this->metaClass : MetaData::class;
+	}
+	
+	/**
+	 * Return the model value column name.
+	 *
+	 * @return string
+	 */
+	public function getMetaValueColumnName(): string
+	{
+		return property_exists($this, 'metaValueName') ? $this->metaValueName : 'value';
+	}
+	
+	/**
+	 * Return the model key column name.
+	 *
+	 * @return string
+	 */
+	public function getMetaKeyColumnName(): string
+	{
+		return property_exists($this, 'metaKeyColumnName') ? $this->metaKeyColumnName : 'key';
 	}
 	
 	/**
