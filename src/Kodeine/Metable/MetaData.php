@@ -16,6 +16,23 @@ class MetaData extends Model
 	protected $fillable = ['key', 'value'];
 	
 	/**
+	 * @var string 
+	 */
+	private $valueColumn = 'value';
+	
+	/**
+	 * Set up the fillable array, and the value for saving
+	 * 
+	 * @param Model $parent
+	 * @return void
+	 */
+	public function init(Model $parent): void
+	{
+		$this->fillable = [$parent->getMetaKeyColumnName(), $parent->getMetaValueColumnName()];
+		$this->valueColumn = $parent->getMetaValueColumnName();
+	}
+	
+	/**
 	 * @var array
 	 */
 	protected $dataTypes = ['boolean', 'integer', 'double', 'float', 'string', 'NULL'];
@@ -57,26 +74,26 @@ class MetaData extends Model
 		
 		if ( is_array( $value ) ) {
 			$this->type = 'array';
-			$this->attributes['value'] = json_encode( $value );
+			$this->attributes[$this->valueColumn] = json_encode( $value );
 		}
 		elseif ( $value instanceof DateTime ) {
 			$this->type = 'datetime';
-			$this->attributes['value'] = $this->fromDateTime( $value );
+			$this->attributes[$this->valueColumn] = $this->fromDateTime( $value );
 		}
 		elseif ( $value instanceof Model ) {
 			$this->type = 'model';
 			$class = get_class( $value );
-			$this->attributes['value'] = $class . (! $value->exists ? '' : '#' . $value->getKey());
+			$this->attributes[$this->valueColumn] = $class . (! $value->exists ? '' : '#' . $value->getKey());
 			// Update the cache
 			$this->modelCache[$class][$value->getKey()] = $value;
 		}
 		elseif ( is_object( $value ) ) {
 			$this->type = 'object';
-			$this->attributes['value'] = json_encode( $value );
+			$this->attributes[$this->valueColumn] = json_encode( $value );
 		}
 		else {
 			$this->type = in_array( $type, $this->dataTypes ) ? $type : 'string';
-			$this->attributes['value'] = $value;
+			$this->attributes[$this->valueColumn] = $value;
 		}
 	}
 	
