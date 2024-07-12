@@ -413,7 +413,7 @@ trait Metable
 	 */
 	public function getMetaValueColumnName(): string
 	{
-		return property_exists($this, 'metaValueName') ? $this->metaValueName : 'value';
+		return property_exists($this, 'metaValueColumnName') ? $this->metaValueColumnName : 'value';
 	}
 	
 	/**
